@@ -1,6 +1,5 @@
 // includes
 
-#include <bits/types/struct_iovec.h>
 #define _DEFAULT_SOURCE
 #define _BSD_SOURCE
 #define _GNU_SOURCE
@@ -36,7 +35,7 @@ enum editorKey {
   HOME_KEY,
   END_KEY,
   PAGE_UP,
-  PAGE_DOWN,
+  PAGE_DOWN
 };
 
 // data
@@ -93,9 +92,9 @@ void enableRawMode() {
 
   struct termios raw = E.orig_termios;
 
-  raw.c_lflag &= ~(BRKINT | INPCK | ISTRIP | IXON | ICRNL);
-  raw.c_lflag &= ~(OPOST);
-  raw.c_lflag |= (CS8);
+  raw.c_iflag &= ~(BRKINT | INPCK | ISTRIP | IXON | ICRNL);
+  raw.c_oflag &= ~(OPOST);
+  raw.c_cflag |= (CS8);
   raw.c_lflag &= ~(ECHO | ICANON | ISIG | IEXTEN);
   raw.c_cc[VMIN] = 0;
   raw.c_cc[VTIME] = 1;
@@ -116,14 +115,14 @@ int editorReadKey() {
   if (c == '\x1b') {
     char seq[3];
 
-    if (read(STDOUT_FILENO, &seq[0], 1) != 1)
+    if (read(STDIN_FILENO, &seq[0], 1) != 1)
       return '\x1b';
-    if (read(STDOUT_FILENO, &seq[1], 1) != 1)
+    if (read(STDIN_FILENO, &seq[1], 1) != 1)
       return '\x1b';
 
     if (seq[0] == '[') {
       if (seq[1] >= '0' && seq[1] <= '9') {
-        if (read(STDOUT_FILENO, &seq[2], 1) != 1) {
+        if (read(STDIN_FILENO, &seq[2], 1) != 1) {
           return '\x1b';
         }
         if (seq[2] == '~') {
@@ -160,7 +159,7 @@ int editorReadKey() {
           return END_KEY;
         }
       }
-    } else if (seq[0] == '0') {
+    } else if (seq[0] == 'O') {
       switch (seq[1]) {
       case 'H':
         return HOME_KEY;
@@ -280,13 +279,13 @@ void editorDelRow(int at) {
   if (at < 0 || at >= E.numrows)
     return;
   editorFreeRow(&E.row[at]);
-  memmove(&E.row[at], &E.row[at + 1], sizeof(erow) * (E.numrows - at + 1));
+  memmove(&E.row[at], &E.row[at + 1], sizeof(erow) * (E.numrows - at - 1));
   E.numrows--;
   E.dirty++;
 }
 
 void editorRowInsertChar(erow *row, int at, int c) {
-  if (at < 0 || at >= row->size)
+  if (at < 0 || at > row->size)
     at = row->size;
   row->chars = realloc(row->chars, row->size + 2);
   memmove(&row->chars[at + 1], &row->chars[at], row->size - at + 1);
@@ -407,7 +406,6 @@ void editorSave() {
       editorSetStatusMessage("Not saved!");
       return;
     }
-    return;
   }
 
   int len;
@@ -467,7 +465,7 @@ void editorScroll() {
   if (E.cx < E.coloff) {
     E.coloff = E.rx;
   }
-  if (E.rx >= E.coloff + E.screencols) {
+  if (E.cx >= E.coloff + E.screencols) {
     E.coloff = E.rx - E.screencols + 1;
   }
 }
@@ -540,7 +538,6 @@ void editorDrawMessageBar(struct abuf *ab) {
     msglen = E.screencols;
   if (msglen && time(NULL) - E.statusmsg_time < 5)
     abAppend(ab, E.statusmsg, msglen);
-  abAppend(ab, E.statusmsg, msglen);
 }
 
 void editorRefreshScreen() {
